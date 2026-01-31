@@ -1,0 +1,59 @@
+version: "3"
+
+includes:
+  k8s:
+    taskfile: ./deploy/k8s/taskfile.yaml
+    dir: ./deploy/k8s
+
+env:
+  SPIKE_OTLP_ENDPOINT: http://localhost:4318/v1/metrics
+  SPIKE_OTLP_SERVICE_NAMESPACE: bitkit
+  SPIKE_OTLP_SERVICE_NAME: my-node-otel-spike
+
+vars:
+  APP_NAME: wsgw-e2e-app
+
+tasks:
+  app-version-data:
+    cmds:
+      - |
+        cd app
+        project_root=..
+        build_root=./dist
+        application="WebSocket Gateway / End-to-end Test / Test Application"
+        version=$(jq -r '.version' $project_root/package.json || :)
+        commit=$(git rev-parse HEAD)
+
+        mkdir -p "$build_root"
+
+        cat > $build_root/version.json <<EOF
+        {
+            "application": "$application",
+            "version": "$version",
+            "commit": "$commit",
+            "buildTime": "{{now}}"
+        }
+        EOF
+  app:
+    deps: [app-version-data]
+    cmds:
+      - |
+        tsc -p app
+        cp ./package*.json ./app/dist/
+        cp ./app/dist/version.json ./app/image/
+        bun build --target node --external="$(jq -r '.dependencies|keys[]' package.json)" ./app/dist/app/src/index.js --outfile ./app/image/bundle.js --sourcemap=none
+    sources:
+      - app/src/**/*
+    generates:
+      - app/dist/bundle.js
+  app-image:
+    deps: [app]
+    cmds:
+      - |
+        docker_dir=app/image
+        cp ./package.json ./package-lock.json $docker_dir/
+        if which minikube && minikube status;
+        then
+            eval "$(minikube docker-env)"
+        fi
+        docker build -t bitkit/{{.APP_NAME}} $docker_dir

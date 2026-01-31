@@ -1,0 +1,25 @@
+{
+	"compilerOptions": {
+		"rootDir": ".",
+		"target": "ES2022",
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"strictNullChecks": true,
+		"noImplicitAny": true,
+		"lib": [
+			"es2022"
+		],
+		"allowJs": true,
+		"typeRoots": [
+			"./node_modules/@types"
+		],
+		"allowImportingTsExtensions": false
+	},
+	"include": [
+		"common/src/**/*",
+		"app/src/**/*"
+	]
+}
