@@ -11,6 +11,14 @@ import stylistic from "@stylistic/eslint-plugin";
 
 export default [
 	{
+		languageOptions: {
+			globals: globals.jasmine
+		}
+	},
+	{
+		ignores: ["package-lock.json", "**/node_modules/**", "**/dist/**", "**/build/**", "*/image/**"]
+	},
+	{
 		files: ["**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
 		languageOptions: { globals: globals.node }
 	},
@@ -28,16 +36,24 @@ export default [
 	})),
 	{
 		files: ["**/*.{jsx,tsx}"],
-		...pluginReact.configs.flat.recommended
+		...pluginReact.configs.flat.recommended,
+		settings: {
+			react: {
+				version: "detect"
+			}
+		}
 	},
-	json.configs.recommended,
 	{
-		files: ["**/*.md"],
-		...markdown.configs.recommended
+		...json.configs.recommended,
+		files: ["**/*.json"],
+		ignores: ["tsconfig.json"],
+		language: "json/json"
 	},
+	...markdown.configs.recommended,
 	{
+		...css.configs.recommended,
 		files: ["**/*.css"],
-		...css.configs.recommended
+		language: "css/css"
 	},
 	{
 		files: ["**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
@@ -61,12 +77,18 @@ export default [
 					delimiter: "semi",
 					requireLast: false
 				}
-			}],
-			"no-undef": "warn"
+			}]
 		}
 	},
 	{
 		files: ["**/*.ts", "**/*.tsx"],
+		rules: {
+			"@typescript-eslint/no-unused-vars": ["error", {
+				"argsIgnorePattern": "^_",
+				"varsIgnorePattern": "^_",
+				"caughtErrorsIgnorePattern": "^_"
+			}]
+		},
 		languageOptions: {
 			parser: tsparser
 		},

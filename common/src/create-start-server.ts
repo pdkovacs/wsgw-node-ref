@@ -5,7 +5,7 @@ import { type AddressInfo } from "net";
 import { getLogger, setDefaultLogLevel } from "./logger.js";
 import { tracingMiddleWare } from "./otel.js";
 import { getAppInfoHandler } from "./app-info-handler.js";
-import { CredentialsMatch, setupSecurity } from "./security/authentication-handler.js";
+import { CredentialsMatch, setupAuthentication } from "./security/authentication-handler.js";
 import { resolve } from "path";
 import { PasswordCredentials } from "./security/password-credentials.js";
 import { createUserService } from "./security/user-service.js";
@@ -18,6 +18,7 @@ export interface ServerConfig {
 	readonly routes: express.Router;
 	readonly passwordCredentialsList: PasswordCredentials[];
 	readonly rootOtelInstScope: string;
+	readonly serviceName: string;
 }
 
 export interface Server {
@@ -35,6 +36,7 @@ export const createStartServer = async (config: ServerConfig): Promise<Server> =
 	app.set("trust proxy", true);
 	app.use((req, _, next) => {
 		req.logger = logger.child({
+			serviceName: config.serviceName,
 			requestUrl: req.originalUrl,
 			method: req.method,
 			ip: req.ip
@@ -50,7 +52,7 @@ export const createStartServer = async (config: ServerConfig): Promise<Server> =
 	const credentialsMatch: CredentialsMatch = async targetCreds =>
 		!isNil(config.passwordCredentialsList.find(creds => creds.username === targetCreds.username && creds.password === targetCreds.password));
 
-	setupSecurity(app, credentialsMatch);
+	setupAuthentication(app, credentialsMatch);
 
 	app.get("/user", userInfoHandler(userService));
 	app.get("/users", userListHandler(userService));

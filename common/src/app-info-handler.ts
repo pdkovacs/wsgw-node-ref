@@ -1,6 +1,7 @@
 import { type Handler } from "express";
 import * as path from "path";
 import { readFile } from "fs/promises";
+import { StatusCodes } from "http-status-codes";
 
 interface VersionInfo {
 	readonly version: string;
@@ -17,6 +18,6 @@ export const getAppInfoHandler = (packageRootDir: string): Handler => async (req
 		res.send(versionInfo);
 	} catch (error) {
 		logger.error(error);
-		res.status(500).send({ error: "Failed to retreive " }).end();
+		res.status(StatusCodes.INTERNAL_SERVER_ERROR).send({ error: "Failed to retreive " }).end();
 	}
 };

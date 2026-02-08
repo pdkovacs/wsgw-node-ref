@@ -1,60 +1,59 @@
-import express from "express";
+import { Router } from "express";
 
-import { metrics, SpanStatusCode, trace } from "@opentelemetry/api";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { format } from "node:util";
 
 import { createStartServer } from "#common/create-start-server.js";
-import { OtelConfig, setupMetrics, setupTracing, traced } from "#common/otel.js";
+import { createOtelConfig, OtelConfig, setupMetrics, setupTracing, traced } from "#common/otel.js";
+import { connectPath, createWsgwLocator, disonnectedPath, messagePath } from "#common/wsgw.js";
 import { isEmpty } from "lodash";
+import { createApiHanlderParams, createBulkMessageHandler, createMessageHandler } from "./http-adapter/api-handler.js";
+import { createCounter, createWsHandlerMetrics } from "./http-adapter/metrics.js";
+import { configHandler } from "./http-adapter/config-handler.js";
+import { createWsgwConnectionTracker } from "./conntrack/ws-connection-tracker.js";
+import { connectWsHandler, disconnectWsHandler, messageWsHandler } from "./http-adapter/ws-handlers.js";
+import { envNamePrefix } from "./config.js";
 
 export interface Server {
 	readonly address: () => { address: string; port: number };
 	readonly shutdown: () => Promise<void>;
 }
 
-const createOtelConfig = (): OtelConfig => {
-	return {
-		serviceNamespace: process.env.E2EAPP_OTLP_SERVICE_NAMESPACE ?? "bitkit/wsgw",
-		serviceName: process.env.E2EAPP_OTLP_SERVICE_NAME ?? "wsgw-e2e-app",
-		endpointUrl: process.env.E2EAPP_OTLP_ENDPOINT
-	};
-};
-
-const createCounter = (counterName: string) => {
-	return metrics.getMeter("wsgw-e2e-app").createCounter(counterName);
-};
-
-const rootOtelInstScope = "wsgw-e2e-app";
+const serviceName = "wsgw-e2e-app";
 
 export const creStartServer = async (): Promise<Server> => {
-	const otelConfig: OtelConfig = createOtelConfig();
+	const otelConfig: OtelConfig = createOtelConfig(envNamePrefix, "wsgw-e2e-app");
 	setupTracing(otelConfig);
 	setupMetrics(otelConfig);
 
 	const counter = createCounter("root.handler.call.count");
 
-	const router: express.Router = express.Router();
+	const router: Router = Router();
 
-	// router.get("/config", configHandler(conf.WsgwHost, conf.WsgwPort))
+	router.get("/config", configHandler);
 
-	// const apiGroup = authorizedGroup.Group("/api")
-	// const apiHandler = newAPIHandler(config.GetWsgwUrl(conf), wsConnections)
-	// const apiGroup.POST("/message", apiHandler.messageHandler())
-	// const apiGroup.POST("/messages-in-bulk", apiHandler.sendInBulk())
+	const wsConnections = await createWsgwConnectionTracker();
 
-	// const wsGroup = authorizedGroup.Group("/ws")
-	// const wsHandler = newWSHandler(wsConnections)
-	// wsGroup.GET(string(wsgw.ConnectPath), wsHandler.connectWsHandler(wsConnections))
-	// wsGroup.POST(string(wsgw.DisonnectedPath), wsHandler.disconnectWsHandler(wsConnections))
-	// wsGroup.POST(string(wsgw.MessagePath), messageWsHandler())
+	const apiRouter = Router();
+	const apiHandlerParams = await createApiHanlderParams(createWsgwLocator(envNamePrefix), wsConnections);
+	apiRouter.post("/message", createMessageHandler(apiHandlerParams));
+	apiRouter.post("/messages-in-bulk", createBulkMessageHandler(apiHandlerParams));
+	router.use("/api", apiRouter);
 
-	router.get("/", (req, res) => {
+	const wsRouter = Router();
+	const wsHandlerMetrics = createWsHandlerMetrics();
+	wsRouter.get(connectPath, connectWsHandler(wsHandlerMetrics, wsConnections));
+	wsRouter.post(disonnectedPath, disconnectWsHandler(wsHandlerMetrics, wsConnections));
+	wsRouter.post(messagePath, messageWsHandler(wsHandlerMetrics, wsConnections));
+	router.use("/ws", wsRouter);
+
+	router.get("/test-otel", (req, res) => {
 		traced(req, () => {
 			// const logger = req.logger;
 
 			counter.add(1);
 
-			const formattingSpan = trace.getTracer(rootOtelInstScope).startSpan("formatting response");
+			const formattingSpan = trace.getTracer(serviceName).startSpan("formatting response");
 			try {
 				const greeting = format("Hello, %s", req.query.someone);
 				formattingSpan.setStatus({ code: SpanStatusCode.OK });
@@ -81,6 +80,7 @@ export const creStartServer = async (): Promise<Server> => {
 		port: isNaN(port) ? 8080 : port,
 		routes: router,
 		passwordCredentialsList,
-		rootOtelInstScope
+		rootOtelInstScope: serviceName,
+		serviceName
 	});
 };

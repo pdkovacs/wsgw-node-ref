@@ -57,3 +57,7 @@ tasks:
             eval "$(minikube docker-env)"
         fi
         docker build -t bitkit/{{.APP_NAME}} $docker_dir
+  smoke-test:
+    cmds:
+      - tsc -p client
+      - bun run client/dist/client/src/smoke-test.js
