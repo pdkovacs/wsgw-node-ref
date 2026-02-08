@@ -2,6 +2,7 @@ import { type Handler, type Request, type Router } from "express";
 import session from "express-session";
 import { getLogger } from "../logger.js";
 import { PasswordCredentials } from "./password-credentials.js";
+import { StatusCodes } from "http-status-codes";
 
 const getAuthorizationHeader: (req: Request) => string = req => req.headers.authorization ?? "";
 
@@ -33,7 +34,7 @@ export const basicAuthenticationHandler = (
 			req.session.user = { userId: requestCredentials.username, displayName: requestCredentials.username };
 			next();
 		} else {
-			res.set("WWW-Authenticate", "Basic").status(401).end();
+			res.set("WWW-Authenticate", "Basic").status(StatusCodes.UNAUTHORIZED).end();
 		}
 	};
 	asyncFunc()
@@ -42,7 +43,7 @@ export const basicAuthenticationHandler = (
 		).catch(error => {
 			const errmsg = `Error during authentication: ${error}`;
 			logger.error("Error during authentication: %o", error);
-			res.status(500).send(errmsg).end();
+			res.status(StatusCodes.INTERNAL_SERVER_ERROR).send(errmsg).end();
 		});
 };
 

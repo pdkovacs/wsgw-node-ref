@@ -1,4 +1,4 @@
-import { context, metrics, trace } from "@opentelemetry/api";
+import { Context, context, metrics, propagation, trace } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { AlwaysOnSampler, BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { defaultResource, resourceFromAttributes } from "@opentelemetry/resources";
@@ -8,6 +8,7 @@ import {
 	MeterProvider,
 	PeriodicExportingMetricReader
 } from "@opentelemetry/sdk-metrics";
+import { W3CTraceContextPropagator } from "@opentelemetry/core";
 
 import { getLogger } from "./logger.js";
 import { Handler, Request } from "express";
@@ -54,6 +55,8 @@ export const setupTracing = (config: OtelConfig) => {
 		spanProcessors: [new BatchSpanProcessor(traceExporter)],
 		sampler: new AlwaysOnSampler()
 	});
+
+	propagation.setGlobalPropagator(new W3CTraceContextPropagator());
 
 	traceProvider.register();
 
@@ -109,9 +112,10 @@ export const setupMetrics = (config: OtelConfig) => {
 };
 
 export const tracingMiddleWare: (instrumentationScope: string) => Handler = scope => (req, res, next) => {
+	const activeContext: Context = propagation.extract(context.active(), req.headers);
 	const tracer = trace.getTracer(scope);
-	const span = tracer.startSpan(`${req.method} ${req.route?.path ?? req.path}`);
-	req._span = span; // carry it forward if you need it in handlers
+	const span = tracer.startSpan(`${req.method} ${req.route?.path ?? req.path}`, {}, activeContext);
+	req._span = span; // Let's carry it forward, we will need it in handlers
 
 	res.on("finish", () => {
 		span.updateName(`${req.method} ${req.route?.path ?? req.path}`);
