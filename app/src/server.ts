@@ -1,28 +1,19 @@
-import express from "express";
+import { Router } from "express";
 
-import { metrics, SpanStatusCode, trace } from "@opentelemetry/api";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { format } from "node:util";
 
 import { createStartServer } from "#common/create-start-server.js";
 import { OtelConfig, setupMetrics, setupTracing, traced } from "#common/otel.js";
 import { isEmpty } from "lodash";
+import { createApiHanlderParams, createBulkMessageHandler, createMessageHandler } from "./http-adapter/api-handler.js";
+import { createCounter } from "./http-adapter/metrics.js";
+import { createOtelConfig, createWsgwLocator } from "./config.js";
 
 export interface Server {
 	readonly address: () => { address: string; port: number };
 	readonly shutdown: () => Promise<void>;
 }
-
-const createOtelConfig = (): OtelConfig => {
-	return {
-		serviceNamespace: process.env.E2EAPP_OTLP_SERVICE_NAMESPACE ?? "bitkit/wsgw",
-		serviceName: process.env.E2EAPP_OTLP_SERVICE_NAME ?? "wsgw-e2e-app",
-		endpointUrl: process.env.E2EAPP_OTLP_ENDPOINT
-	};
-};
-
-const createCounter = (counterName: string) => {
-	return metrics.getMeter("wsgw-e2e-app").createCounter(counterName);
-};
 
 const rootOtelInstScope = "wsgw-e2e-app";
 
@@ -33,22 +24,24 @@ export const creStartServer = async (): Promise<Server> => {
 
 	const counter = createCounter("root.handler.call.count");
 
-	const router: express.Router = express.Router();
+	const router: Router = Router();
 
 	// router.get("/config", configHandler(conf.WsgwHost, conf.WsgwPort))
 
-	// const apiGroup = authorizedGroup.Group("/api")
-	// const apiHandler = newAPIHandler(config.GetWsgwUrl(conf), wsConnections)
-	// const apiGroup.POST("/message", apiHandler.messageHandler())
-	// const apiGroup.POST("/messages-in-bulk", apiHandler.sendInBulk())
+	const apiRouter = Router();
+	const apiHandlerParams = await createApiHanlderParams(createWsgwLocator());
+	apiRouter.post("/message", createMessageHandler(apiHandlerParams));
+	apiRouter.post("/messages-in-bulk", createBulkMessageHandler(apiHandlerParams));
+	router.use("/api", apiRouter);
 
-	// const wsGroup = authorizedGroup.Group("/ws")
+	const wsRouter = Router();
 	// const wsHandler = newWSHandler(wsConnections)
 	// wsGroup.GET(string(wsgw.ConnectPath), wsHandler.connectWsHandler(wsConnections))
 	// wsGroup.POST(string(wsgw.DisonnectedPath), wsHandler.disconnectWsHandler(wsConnections))
 	// wsGroup.POST(string(wsgw.MessagePath), messageWsHandler())
+	router.use("/ws", wsRouter);
 
-	router.get("/", (req, res) => {
+	router.get("/test-otel", (req, res) => {
 		traced(req, () => {
 			// const logger = req.logger;
 
