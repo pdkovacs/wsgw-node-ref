@@ -1,4 +1,4 @@
-import { Context, context, metrics, propagation, trace } from "@opentelemetry/api";
+import { Context, context, Histogram, metrics, propagation, trace } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { AlwaysOnSampler, BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { defaultResource, resourceFromAttributes } from "@opentelemetry/resources";
@@ -128,4 +128,15 @@ export const tracingMiddleWare: (instrumentationScope: string) => Handler = scop
 
 export const traced = (req: Request, handler: () => void) => {
 	context.with(trace.setSpan(context.active(), req._span), handler);
+};
+
+
+export const createHistogram = (otelScope: string, name: string, description: string, unit: string, options = {}): Histogram => {
+	const meter = metrics.getMeter(otelScope);
+
+	return meter.createHistogram(name, {
+		...options,
+		description,
+		unit: "{call}"
+	});
 };
