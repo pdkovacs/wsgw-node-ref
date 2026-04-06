@@ -46,7 +46,7 @@ tasks:
       - app/src/**/*
     generates:
       - app/dist/bundle.js
-  app-image:
+  app:image:
     deps: [app]
     cmds:
       - |

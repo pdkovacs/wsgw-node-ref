@@ -70,7 +70,9 @@ const sendMessage = async (
 
 	for (const wsConnId of wsConnIds) {
 		const url = format("%s%s/%s", wsgwUrl, "/message", wsConnId);
-		const response = await axios.post(url, message);
+		// validateStatus disables axios's default behaviour of throwing on 4xx/5xx,
+		// so the NOT_FOUND check below is reachable and stale connection IDs get discarded.
+		const response = await axios.post(url, message, { validateStatus: () => true });
 		if (response.status !== StatusCodes.NO_CONTENT) {
 			if (response.status === StatusCodes.NOT_FOUND) {
 				await discardConnId(wsConnId);

@@ -79,7 +79,7 @@ async function smokeTest(): Promise<void> {
 	);
 	console.log("Message POSTed to app");
 
-	// Step 3: assert the message arrives on the WebSocket.
+	// Step 3: assert the correct message arrives on the WebSocket.
 	const delivered = await withTimeout(deliveryPromise, "message delivery on WebSocket");
 	ws.close();
 
