@@ -32,6 +32,8 @@
 		"typescript-eslint": "^8.53.1"
 	},
 	"dependencies": {
+		"@aws-sdk/client-dynamodb": "^3.1029.0",
+		"@aws-sdk/lib-dynamodb": "^3.1029.0",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/auto-instrumentations-node": "^0.69.0",
 		"@opentelemetry/instrumentation-express": "^0.59.0",
