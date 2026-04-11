@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: wsgw-e2e-app
-  namespace: wsgw-e2e
 spec:
   replicas: 1
   selector:
@@ -34,8 +33,6 @@ spec:
               value: "wsgw"
             - name: E2EAPP_WSGW_PORT
               value: "8080"
-            - name: E2EAPP_DEV_LOG_FILE
-              value: "{{.DEV_LOG_FILE}}"
             - name: E2EAPP_OTLP_ENDPOINT
               value: http://alloy.monitoring.svc.cluster.local:4318
             - name: E2EAPP_OTLP_SERVICE_NAMESPACE

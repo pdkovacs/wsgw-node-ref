@@ -40,22 +40,6 @@ tasks:
           kubectl -n {{.NAMESPACE}} scale deployment wsgw-e2e-app --replicas 0
           kubectl -n {{.NAMESPACE}} scale deployment wsgw-e2e-app --replicas $app_scale
         fi
-  client:
-    deps: [userdb]
-    cmds:
-      - |
-        kubectl -n {{.NAMESPACE}} apply -f ./e2e-client.yaml
-
-        echo "==== Rescaling wsgw-e2e-client, maybe...."
-        client_scale="{{.E2ECLIENT_SCALE}}"
-        if [ -z "$client_scale" ]; then
-          echo "E2ECLIENT_SCALE not set; redploying wsgw-e2e-client with the current scale..."
-          kubectl -n {{.NAMESPACE}} rollout restart deployment wsgw-e2e-client
-        else
-          echo "Rescaling wsgw-e2e-client to $client_scale"
-          kubectl -n {{.NAMESPACE}} scale deployment wsgw-e2e-client --replicas 0
-          kubectl -n {{.NAMESPACE}} scale deployment wsgw-e2e-client --replicas $client_scale
-        fi
   contour:
     cmds:
       - |

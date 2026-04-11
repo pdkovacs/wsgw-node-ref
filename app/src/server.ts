@@ -4,7 +4,7 @@ import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { format } from "node:util";
 
 import { createStartServer } from "#common/create-start-server.js";
-import { createOtelConfig, OtelConfig, setupMetrics, setupTracing, traced } from "#common/otel.js";
+import { createOtelConfig, OtelConfig, setupMetrics, setupTracing } from "#common/otel.js";
 import { connectPath, createWsgwLocator, disonnectedPath, messagePath } from "#common/wsgw.js";
 import { isEmpty } from "lodash";
 import { createApiHanlderParams, createBulkMessageHandler, createMessageHandler } from "./http-adapter/api-handler.js";
@@ -47,26 +47,22 @@ export const creStartServer = async (): Promise<Server> => {
 	wsRouter.post(messagePath, messageWsHandler(wsHandlerMetrics, wsConnections));
 	router.use("/ws", wsRouter);
 
-	router.get("/test-otel", (req, res) => {
-		traced(req, () => {
-			// const logger = req.logger;
+	router.get("/test-otel", (_req, res) => {
+		counter.add(1);
 
-			counter.add(1);
-
-			const formattingSpan = trace.getTracer(serviceName).startSpan("formatting response");
-			try {
-				const greeting = format("Hello, %s", req.query.someone);
-				formattingSpan.setStatus({ code: SpanStatusCode.OK });
-				res.json(greeting);
-			} catch (err) {
-				formattingSpan.setStatus({
-					code: SpanStatusCode.ERROR,
-					message: (err as Error).message ?? (err as string).toString()
-				});
-			} finally {
-				formattingSpan.end();
-			}
-		});
+		const formattingSpan = trace.getTracer(serviceName).startSpan("formatting response");
+		try {
+			const greeting = format("Hello, %s", _req.query.someone);
+			formattingSpan.setStatus({ code: SpanStatusCode.OK });
+			res.json(greeting);
+		} catch (err) {
+			formattingSpan.setStatus({
+				code: SpanStatusCode.ERROR,
+				message: (err as Error).message ?? (err as string).toString()
+			});
+		} finally {
+			formattingSpan.end();
+		}
 	});
 
 	const port = Number(process.env.E2EAPP_SERVER_PORT);

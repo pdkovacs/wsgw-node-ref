@@ -11,7 +11,7 @@ import {
 import { W3CTraceContextPropagator } from "@opentelemetry/core";
 
 import { getLogger } from "./logger.js";
-import { Handler, Request } from "express";
+import { Handler } from "express";
 
 // import { ExportResult } from "@opentelemetry/core";
 
@@ -69,6 +69,7 @@ export const setupTracing = (config: OtelConfig) => {
 export const setupMetrics = (config: OtelConfig) => {
 	const resource = defaultResource().merge(
 		resourceFromAttributes({
+			"service.namespace": config.serviceNamespace,
 			[ATTR_SERVICE_NAME]: config.serviceName
 		})
 	);
@@ -111,25 +112,21 @@ export const setupMetrics = (config: OtelConfig) => {
 	metrics.setGlobalMeterProvider(meterProvider);
 };
 
-export const tracingMiddleWare: (instrumentationScope: string) => Handler = scope => (req, res, next) => {
+export const tracingMiddleWare: (instrumentationScope: string) => Handler = _scope => (req, _res, next) => {
 	const activeContext: Context = propagation.extract(context.active(), req.headers);
-	const tracer = trace.getTracer(scope);
-	const span = tracer.startSpan(`${req.method} ${req.route?.path ?? req.path}`, {}, activeContext);
-	req._span = span; // Let's carry it forward, we will need it in handlers
-
-	res.on("finish", () => {
-		span.updateName(`${req.method} ${req.route?.path ?? req.path}`);
-		span.setAttribute("http.status_code", res.statusCode);
-		span.end();
-	});
-
-	context.with(trace.setSpan(context.active(), span), next);
+	context.with(activeContext, next);
 };
 
-export const traced = (req: Request, handler: () => void) => {
-	context.with(trace.setSpan(context.active(), req._span), handler);
+export const injectTraceData = (): Record<string, string> => {
+	const carrier: Record<string, string> = {};
+	propagation.inject(context.active(), carrier);
+	return carrier;
 };
 
+export const injectIntoHeaders = (headers: Record<string, string> = {}): Record<string, string> => {
+	propagation.inject(context.active(), headers);
+	return headers;
+};
 
 export const createHistogram = (otelScope: string, name: string, description: string, unit: string, options = {}): Histogram => {
 	const meter = metrics.getMeter(otelScope);

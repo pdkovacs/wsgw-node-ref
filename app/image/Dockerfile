@@ -5,7 +5,10 @@ LABEL Version="1.0.0"
 
 RUN useradd -u 1101 -m --shell /bin/false wsg-e2e-app
 
-RUN apt-get update && apt-get install iproute2 netcat-traditional dnsutils curl -y
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends iproute2 netcat-traditional dnsutils curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/app
 

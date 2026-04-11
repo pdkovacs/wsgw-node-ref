@@ -12,6 +12,7 @@ env:
 
 vars:
   APP_NAME: wsgw-e2e-app
+  NAMESPACE: '{{.NAMESPACE | default "wsgw-e2e" }}'
 
 tasks:
   app-version-data:

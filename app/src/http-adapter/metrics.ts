@@ -1,5 +1,7 @@
 import { Counter, metrics } from "@opentelemetry/api";
 
+export const otelScope = "wsgw-e2e-app";
+
 export interface ApiHandlerMetrics {
 	readonly messageRequestCounter: Counter;
 	readonly staleWsConnIdCounter: Counter;
@@ -53,6 +55,6 @@ export const createWsHandlerMetrics = (): WsHandlerMetrics => {
 
 export const createCounter = (counterName: string, description?: string) => {
 	const options = description ? { description } : {};
-	return metrics.getMeter("wsgw-e2e-app").createCounter(counterName, options);
+	return metrics.getMeter(otelScope).createCounter(counterName, options);
 };
 

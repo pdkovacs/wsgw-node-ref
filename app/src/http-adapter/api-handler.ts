@@ -1,10 +1,10 @@
 import { Request, Handler } from "express";
 import pLimit from "p-limit";
+import { trace } from "@opentelemetry/api";
+import { injectIntoHeaders, injectTraceData } from "#common/otel.js";
 import { WsConnections } from "../conntrack/ws-connection-tracker.js";
-import { ApiHandlerMetrics, createApiHandlerMetrics } from "./metrics.js";
+import { ApiHandlerMetrics, createApiHandlerMetrics, otelScope } from "./metrics.js";
 import { format } from "node:util";
-// import { context, Context, propagation } from "@opentelemetry/api";
-import { traced } from "#common/otel.js";
 import { E2EMessage } from "#common/message-dto.js";
 import { StatusCodes } from "http-status-codes";
 import axios from "axios";
@@ -25,13 +25,15 @@ export const createApiHanlderParams = async (wsgwLocator: WsgwLocator, wsConnect
 };
 
 export const createMessageHandler = (params: ApiHandlerParams): Handler => async (req, res) => {
-	traced(req, async () => {
-		const { metrics: handlerMetrics } = params;
-		handlerMetrics.messageRequestCounter.add(1);
-
-		await sendMessageToUser(req, params, req.body);
-
-		res.end();
+	await trace.getTracer(otelScope).startActiveSpan("handle-send-message-request", async (span) => {
+		try {
+			const { metrics: handlerMetrics } = params;
+			handlerMetrics.messageRequestCounter.add(1);
+			await sendMessageToUser(req, params, req.body);
+			res.end();
+		} finally {
+			span.end();
+		}
 	});
 };
 
@@ -51,30 +53,38 @@ const sendMessageToUser = async (req: Request, params: ApiHandlerParams, message
 };
 
 const sendMessageToUserDevices = async (req: Request, params: ApiHandlerParams, userId: string, message: E2EMessage): Promise<void> => {
-	const wsConnIds = await params.wsConnections.getConnections(req, userId);
-	await sendMessage(req, params.wsgwUrl, userId, message, wsConnIds,
+	const wsConnIds = await trace.getTracer(otelScope).startActiveSpan("find-user-devices", async (span) => {
+		try {
+			return await params.wsConnections.getConnections(req, userId);
+		} finally {
+			span.end();
+		}
+	});
+	await sendMessage(req, params, userId, message, wsConnIds,
 		(connId) => params.wsConnections.removeConnection(req, userId, connId));
 };
 
 const sendMessage = async (
 	req: Request,
-	wsgwUrl: string,
+	params: ApiHandlerParams,
 	userId: string,
 	message: E2EMessage,
 	wsConnIds: string[],
 	discardConnId: (connId: string) => Promise<boolean>
 ): Promise<number> => {
-	const logger = req.logger.child({ "wsgwUrl": wsgwUrl });
+	const logger = req.logger.child({ "wsgwUrl": params.wsgwUrl });
 	logger.debug("message to send...", { "recipient": userId, "msg": message, "targetConnectionCount": wsConnIds.length });
 	let statusCode = StatusCodes.NO_CONTENT;
 
 	for (const wsConnId of wsConnIds) {
-		const url = format("%s%s/%s", wsgwUrl, "/message", wsConnId);
+		const url = format("%s%s/%s", params.wsgwUrl, "/message", wsConnId);
+		const messageToSend = { ...message, traceData: injectTraceData() };
 		// validateStatus disables axios's default behaviour of throwing on 4xx/5xx,
 		// so the NOT_FOUND check below is reachable and stale connection IDs get discarded.
-		const response = await axios.post(url, message, { validateStatus: () => true });
+		const response = await axios.post(url, messageToSend, { validateStatus: () => true, headers: injectIntoHeaders() });
 		if (response.status !== StatusCodes.NO_CONTENT) {
 			if (response.status === StatusCodes.NOT_FOUND) {
+				params.metrics.staleWsConnIdCounter.add(1);
 				await discardConnId(wsConnId);
 				continue;
 			}
