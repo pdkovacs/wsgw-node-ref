@@ -2,6 +2,7 @@ version: "3"
 
 vars:
   NAMESPACE: wsgw-e2e
+  HTTP2: '{{.HTTP2 | default "false"}}'
 
 tasks:
   userdb:
@@ -27,6 +28,9 @@ tasks:
   app:
     deps: [userdb]
     cmds:
+      - kubectl -n {{.NAMESPACE}} create configmap wsgw-e2e-app-config
+          --from-literal=HTTP2={{.HTTP2}}
+          --dry-run=client -o yaml | kubectl -n {{.NAMESPACE}} apply -f -
       - |
         kubectl -n {{.NAMESPACE}} apply -f ./e2e-app.yaml
 

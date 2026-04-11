@@ -13,6 +13,7 @@ env:
 vars:
   APP_NAME: wsgw-e2e-app
   NAMESPACE: '{{.NAMESPACE | default "wsgw-e2e" }}'
+  HTTP2: '{{.HTTP2 | default "false"}}'
 
 tasks:
   app-version-data:
@@ -57,7 +58,29 @@ tasks:
         then
             eval "$(minikube docker-env)"
         fi
-        docker build -t bitkit/{{.APP_NAME}} $docker_dir
+        docker build -t bitkit/{{.APP_NAME}}-node $docker_dir
+  run:
+    deps: [app-version-data]
+    cmds:
+      - tsc -p app
+      - |
+        password_base=crixcrax
+
+        pwcreds="["
+        for nummer in $(seq 1 30); do
+          if test $nummer -gt 1; then
+            pwcreds="${pwcreds},"
+          fi
+          pwcreds="${pwcreds}{\"username\":\"user${nummer}\",\"password\":\"${password_base}${nummer}\"}"
+        done
+        pwcreds="${pwcreds}]"
+
+        export E2EAPP_SERVER_PORT=45678
+        export E2EAPP_PASSWORD_CREDENTIALS="$pwcreds"
+        export E2EAPP_WSGW_HOST=localhost
+        export E2EAPP_WSGW_PORT=45679
+        export E2EAPP_HTTP2={{.HTTP2}}
+        node app/dist/app/src/index.js
   smoke-test:
     cmds:
       - tsc -p client

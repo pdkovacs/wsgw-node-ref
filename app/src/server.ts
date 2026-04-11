@@ -74,6 +74,7 @@ export const creStartServer = async (): Promise<Server> => {
 	return createStartServer({
 		host: "0.0.0.0",
 		port: isNaN(port) ? 8080 : port,
+		http2: process.env.E2EAPP_HTTP2 === "true",
 		routes: router,
 		passwordCredentialsList,
 		rootOtelInstScope: serviceName,

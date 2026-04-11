@@ -1,5 +1,6 @@
 import express from "express";
 import helmet from "helmet";
+import * as http from "node:http";
 
 import { type AddressInfo } from "net";
 import { getLogger, setDefaultLogLevel } from "./logger.js";
@@ -15,6 +16,7 @@ import { isNil } from "lodash";
 export interface ServerConfig {
 	readonly host: string;
 	readonly port: number;
+	readonly http2?: boolean;
 	readonly routes: express.Router;
 	readonly passwordCredentialsList: PasswordCredentials[];
 	readonly rootOtelInstScope: string;
@@ -59,8 +61,10 @@ export const createStartServer = async (config: ServerConfig): Promise<Server> =
 
 	app.use(config.routes);
 
+	const httpServer = http.createServer(app);
+
 	return await new Promise(resolve => {
-		const httpServer = app.listen(config.port, config.host,
+		httpServer.listen(config.port, config.host,
 			() => {
 				const addressInfo = httpServer.address() as AddressInfo;
 				logger.info("server is listenening", addressInfo);
