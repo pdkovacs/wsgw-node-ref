@@ -123,6 +123,10 @@ export const injectTraceData = (): Record<string, string> => {
 	return carrier;
 };
 
+export const extractTraceData = (carrier: Record<string, string>): Context => {
+	return propagation.extract(context.active(), carrier);
+};
+
 export const injectIntoHeaders = (headers: Record<string, string> = {}): Record<string, string> => {
 	propagation.inject(context.active(), headers);
 	return headers;

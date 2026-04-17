@@ -1,7 +1,7 @@
 import { Request, Handler } from "express";
 import pLimit from "p-limit";
-import { trace } from "@opentelemetry/api";
-import { injectIntoHeaders, injectTraceData } from "#common/otel.js";
+import { context, trace } from "@opentelemetry/api";
+import { extractTraceData, injectIntoHeaders, injectTraceData } from "#common/otel.js";
 import { WsConnections } from "../conntrack/ws-connection-tracker.js";
 import { ApiHandlerMetrics, createApiHandlerMetrics, otelScope } from "./metrics.js";
 import { format } from "node:util";
@@ -25,16 +25,23 @@ export const createApiHanlderParams = async (wsgwLocator: WsgwLocator, wsConnect
 };
 
 export const createMessageHandler = (params: ApiHandlerParams): Handler => async (req, res) => {
-	await trace.getTracer(otelScope).startActiveSpan("handle-send-message-request", async (span) => {
-		try {
-			const { metrics: handlerMetrics } = params;
-			handlerMetrics.messageRequestCounter.add(1);
-			await sendMessageToUser(req, params, req.body);
-			res.end();
-		} finally {
-			span.end();
-		}
-	});
+	const messageIn: E2EMessage = req.body;
+	const msgCtx = messageIn.traceData && Object.keys(messageIn.traceData).length > 0
+		? extractTraceData(messageIn.traceData)
+		: context.active();
+
+	await context.with(msgCtx, () =>
+		trace.getTracer(otelScope).startActiveSpan("handle-send-message-request", async (span) => {
+			try {
+				const { metrics: handlerMetrics } = params;
+				handlerMetrics.messageRequestCounter.add(1);
+				await sendMessageToUser(req, params, messageIn);
+				res.end();
+			} finally {
+				span.end();
+			}
+		})
+	);
 };
 
 const sendMessageToUser = async (req: Request, params: ApiHandlerParams, messageIn: E2EMessage): Promise<void> => {
@@ -106,7 +113,10 @@ export const createBulkMessageHandler = (params: ApiHandlerParams): Handler => {
 		try {
 			req.logger.debug("sending messages", { "msgCount": allMessages.length });
 			for (const messageIn of allMessages) {
-				await sendMessageToUser(req, params, messageIn);
+				const msgCtx = messageIn.traceData && Object.keys(messageIn.traceData).length > 0
+					? extractTraceData(messageIn.traceData)
+					: context.active();
+				await context.with(msgCtx, () => sendMessageToUser(req, params, messageIn));
 			}
 			res.end();
 		} catch (err) {
