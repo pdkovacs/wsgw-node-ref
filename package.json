@@ -33,6 +33,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-dynamodb": "^3.1029.0",
+		"@aws-sdk/config": "^3.1032.0",
 		"@aws-sdk/lib-dynamodb": "^3.1029.0",
 		"@fastify/helmet": "^13.0.2",
 		"@opentelemetry/api": "^1.9.0",
@@ -41,6 +42,7 @@
 		"@opentelemetry/instrumentation-http": "^0.211.0",
 		"@opentelemetry/sdk-node": "^0.211.0",
 		"@opentelemetry/sdk-trace-node": "^2.5.0",
+		"@smithy/node-http-handler": "^4.5.3",
 		"@types/ws": "^8.18.1",
 		"axios": "^1.13.5",
 		"fastify": "^5.8.5",

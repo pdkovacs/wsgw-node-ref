@@ -1,4 +1,6 @@
+import https from "node:https";
 import { type FastifyRequest } from "fastify";
+import { NodeHttpHandler } from "@aws-sdk/config/requestHandler";
 import {
 	DynamoDBClient,
 	QueryCommand,
@@ -7,17 +9,34 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { WsConnections } from "./ws-connection-tracker.js";
+import { NodeHttp2Handler } from "@smithy/node-http-handler";
+import { isEmpty } from "lodash";
 
 const TABLE_NAME = "WsgwConnectionIds";
 const USER_ID_ATTRIBUTE = "UserId";
 const CONNECTION_ID_ATTRIBUTE = "ConnectionId";
 const DATE_CREATED_ATTRIBUTE = "DateCreated";
 
+const http2 = false;
+
 export const createDynamodbConnectionTracker = async (dynamodbUrl?: string): Promise<WsConnections> => {
-	const clientConfig = dynamodbUrl
+	const endpointRegion = dynamodbUrl
 		? { endpoint: dynamodbUrl, region: "eu-west-2" }
 		: { region: "eu-west-2" };
-	const client = new DynamoDBClient(clientConfig);
+	const client = new DynamoDBClient({
+		requestHandler: http2
+			? new NodeHttpHandler({
+				requestTimeout: 3_000,
+				httpsAgent: new https.Agent({
+					keepAlive: true,
+					maxSockets: 100
+				})
+			})
+			: new NodeHttp2Handler({
+				requestTimeout: 3_000
+			}),
+		...endpointRegion
+	});
 
 	const addConnection = async (req: FastifyRequest, userId: string, connId: string): Promise<void> => {
 		const logger = req.logger.child({ unit: "DynamodbConntracker", userId, connId });
@@ -38,17 +57,18 @@ export const createDynamodbConnectionTracker = async (dynamodbUrl?: string): Pro
 	const removeConnection = async (req: FastifyRequest, userId: string, connId: string): Promise<boolean> => {
 		const logger = req.logger.child({ unit: "DynamodbConntracker", userId, connId });
 
-		await client.send(new DeleteItemCommand({
+		const deleteResult = await client.send(new DeleteItemCommand({
 			TableName: TABLE_NAME,
 			Key: marshall({
 				[USER_ID_ATTRIBUTE]: userId,
 				[CONNECTION_ID_ATTRIBUTE]: connId
 			}),
-			ReturnConsumedCapacity: "TOTAL"
+			ReturnConsumedCapacity: "TOTAL",
+			ReturnValues: "ALL_OLD"
 		}));
 
 		logger.debug("connection removed");
-		return false;
+		return !isEmpty(deleteResult.Attributes);
 	};
 
 	const getConnections = async (req: FastifyRequest, userId: string): Promise<string[]> => {
