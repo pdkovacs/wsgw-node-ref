@@ -13,7 +13,7 @@ const USER_ID_ATTRIBUTE = "UserId";
 const CONNECTION_ID_ATTRIBUTE = "ConnectionId";
 const DATE_CREATED_ATTRIBUTE = "DateCreated";
 
-export const createDynamodbConnectionTracker = async (dynamodbUrl: string): Promise<WsConnections> => {
+export const createDynamodbConnectionTracker = async (dynamodbUrl?: string): Promise<WsConnections> => {
 	const clientConfig = dynamodbUrl
 		? { endpoint: dynamodbUrl, region: "eu-west-2" }
 		: { region: "eu-west-2" };

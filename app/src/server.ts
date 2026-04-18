@@ -21,7 +21,7 @@ export interface Server {
 const serviceName = "wsgw-e2e-app";
 
 export const creStartServer = async (): Promise<Server> => {
-	const { envNamePrefix, http2, passwordCredentialsList, serverPort } = configuration;
+	const { connectionTracking, envNamePrefix, http2, passwordCredentialsList, serverPort } = configuration;
 
 	const otelConfig: OtelConfig = createOtelConfig(envNamePrefix, "wsgw-e2e-app");
 	setupTracing(otelConfig);
@@ -32,7 +32,7 @@ export const creStartServer = async (): Promise<Server> => {
 	const routes: FastifyPluginAsync = async router => {
 		router.get("/config", configHandler);
 
-		const wsConnections = await createWsgwConnectionTracker();
+		const wsConnections = await createWsgwConnectionTracker(connectionTracking);
 
 		await router.register(async apiRouter => {
 			const apiHandlerParams = await createApiHanlderParams(createWsgwLocator(envNamePrefix), wsConnections);
