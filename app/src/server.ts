@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { type FastifyPluginAsync } from "fastify";
 
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { format } from "node:util";
@@ -28,42 +28,42 @@ export const creStartServer = async (): Promise<Server> => {
 
 	const counter = createCounter("root.handler.call.count");
 
-	const router: Router = Router();
+	const routes: FastifyPluginAsync = async router => {
+		router.get("/config", configHandler);
 
-	router.get("/config", configHandler);
+		const wsConnections = await createWsgwConnectionTracker();
 
-	const wsConnections = await createWsgwConnectionTracker();
+		await router.register(async apiRouter => {
+			const apiHandlerParams = await createApiHanlderParams(createWsgwLocator(envNamePrefix), wsConnections);
+			apiRouter.post("/message", createMessageHandler(apiHandlerParams));
+			apiRouter.post("/messages-in-bulk", createBulkMessageHandler(apiHandlerParams));
+		}, { prefix: "/api" });
 
-	const apiRouter = Router();
-	const apiHandlerParams = await createApiHanlderParams(createWsgwLocator(envNamePrefix), wsConnections);
-	apiRouter.post("/message", createMessageHandler(apiHandlerParams));
-	apiRouter.post("/messages-in-bulk", createBulkMessageHandler(apiHandlerParams));
-	router.use("/api", apiRouter);
+		await router.register(async wsRouter => {
+			const wsHandlerMetrics = createWsHandlerMetrics();
+			wsRouter.get(connectPath, connectWsHandler(wsHandlerMetrics, wsConnections));
+			wsRouter.post(disonnectedPath, disconnectWsHandler(wsHandlerMetrics, wsConnections));
+			wsRouter.post(messagePath, messageWsHandler(wsHandlerMetrics, wsConnections));
+		}, { prefix: "/ws" });
 
-	const wsRouter = Router();
-	const wsHandlerMetrics = createWsHandlerMetrics();
-	wsRouter.get(connectPath, connectWsHandler(wsHandlerMetrics, wsConnections));
-	wsRouter.post(disonnectedPath, disconnectWsHandler(wsHandlerMetrics, wsConnections));
-	wsRouter.post(messagePath, messageWsHandler(wsHandlerMetrics, wsConnections));
-	router.use("/ws", wsRouter);
+		router.get<{ Querystring: { someone?: string } }>("/test-otel", (req, reply) => {
+			counter.add(1);
 
-	router.get("/test-otel", (_req, res) => {
-		counter.add(1);
-
-		const formattingSpan = trace.getTracer(serviceName).startSpan("formatting response");
-		try {
-			const greeting = format("Hello, %s", _req.query.someone);
-			formattingSpan.setStatus({ code: SpanStatusCode.OK });
-			res.json(greeting);
-		} catch (err) {
-			formattingSpan.setStatus({
-				code: SpanStatusCode.ERROR,
-				message: (err as Error).message ?? (err as string).toString()
-			});
-		} finally {
-			formattingSpan.end();
-		}
-	});
+			const formattingSpan = trace.getTracer(serviceName).startSpan("formatting response");
+			try {
+				const greeting = format("Hello, %s", req.query.someone);
+				formattingSpan.setStatus({ code: SpanStatusCode.OK });
+				reply.send(greeting);
+			} catch (err) {
+				formattingSpan.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: (err as Error).message ?? (err as string).toString()
+				});
+			} finally {
+				formattingSpan.end();
+			}
+		});
+	};
 
 	const port = Number(process.env.E2EAPP_SERVER_PORT);
 	const passwordCredentialsList = JSON.parse(process.env.E2EAPP_PASSWORD_CREDENTIALS ?? "[]");
@@ -75,7 +75,7 @@ export const creStartServer = async (): Promise<Server> => {
 		host: "0.0.0.0",
 		port: isNaN(port) ? 8080 : port,
 		http2: process.env.E2EAPP_HTTP2 === "true",
-		routes: router,
+		routes,
 		passwordCredentialsList,
 		rootOtelInstScope: serviceName,
 		serviceName

@@ -1,4 +1,4 @@
-import { Request } from "express";
+import { type FastifyRequest } from "fastify";
 import { WsConnections } from "./ws-connection-tracker.js";
 import { isNil } from "lodash";
 
@@ -10,7 +10,7 @@ export const createInMemoryConnectionTracker = async (): Promise<WsConnections> 
 	const conntracker: ConnectionIdsByMsgId = {
 	};
 
-	const addConnection = async (req: Request, userId: string, connId: string) => {
+	const addConnection = async (req: FastifyRequest, userId: string, connId: string) => {
 		const logger = req.logger.child({ unit: "InmemoryConntracker", userId: userId, connId: connId });
 		logger.debug("BEGIN");
 		const connIds = conntracker[userId];
@@ -22,7 +22,7 @@ export const createInMemoryConnectionTracker = async (): Promise<WsConnections> 
 		}
 	};
 
-	const getConnections = async (_: Request, userId: string): Promise<string[]> => {
+	const getConnections = async (_: FastifyRequest, userId: string): Promise<string[]> => {
 		const connIdList = conntracker[userId];
 
 		if (isNil(connIdList)) {
@@ -32,7 +32,7 @@ export const createInMemoryConnectionTracker = async (): Promise<WsConnections> 
 		return [...connIdList];
 	};
 
-	const removeConnection = async (_: Request, userId: string, connId: string): Promise<boolean> => {
+	const removeConnection = async (_: FastifyRequest, userId: string, connId: string): Promise<boolean> => {
 		const connIdList = conntracker[userId];
 
 		if (!isNil(connIdList)) {

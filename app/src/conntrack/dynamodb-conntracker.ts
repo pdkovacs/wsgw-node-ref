@@ -1,4 +1,4 @@
-import { Request } from "express";
+import { type FastifyRequest } from "fastify";
 import {
 	DynamoDBClient,
 	QueryCommand,
@@ -19,7 +19,7 @@ export const createDynamodbConnectionTracker = async (dynamodbUrl: string): Prom
 		: { region: "eu-west-2" };
 	const client = new DynamoDBClient(clientConfig);
 
-	const addConnection = async (req: Request, userId: string, connId: string): Promise<void> => {
+	const addConnection = async (req: FastifyRequest, userId: string, connId: string): Promise<void> => {
 		const logger = req.logger.child({ unit: "DynamodbConntracker", userId, connId });
 
 		await client.send(new PutItemCommand({
@@ -35,7 +35,7 @@ export const createDynamodbConnectionTracker = async (dynamodbUrl: string): Prom
 		logger.debug("connection added");
 	};
 
-	const removeConnection = async (req: Request, userId: string, connId: string): Promise<boolean> => {
+	const removeConnection = async (req: FastifyRequest, userId: string, connId: string): Promise<boolean> => {
 		const logger = req.logger.child({ unit: "DynamodbConntracker", userId, connId });
 
 		await client.send(new DeleteItemCommand({
@@ -51,7 +51,7 @@ export const createDynamodbConnectionTracker = async (dynamodbUrl: string): Prom
 		return false;
 	};
 
-	const getConnections = async (req: Request, userId: string): Promise<string[]> => {
+	const getConnections = async (req: FastifyRequest, userId: string): Promise<string[]> => {
 		const logger = req.logger.child({ unit: "DynamodbConntracker", userId });
 
 		const connIds: string[] = [];

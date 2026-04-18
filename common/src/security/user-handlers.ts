@@ -1,26 +1,28 @@
-import { Handler } from "express";
+import { type FastifyReply, type FastifyRequest } from "fastify";
 import { UserService } from "./user-service.js";
 import { isNil } from "lodash";
 import { UserInfo } from "./user-info.js";
 import { StatusCodes } from "http-status-codes";
 
-type UserInfoHandler = (userService: UserService) => Handler;
+type UserInfoHandler = (userService: UserService) => (req: FastifyRequest, reply: FastifyReply) => void;
 
-export const userInfoHandler: UserInfoHandler = () => (req, res) => {
+export const userInfoHandler: UserInfoHandler = () => (req, reply) => {
 	const requestUser = req.session.user;
 	if (isNil(requestUser)) {
 		req.logger.debug("No user associated with this request");
-		res.sendStatus(StatusCodes.UNAUTHORIZED).end();
+		reply.code(StatusCodes.UNAUTHORIZED).send();
+		return;
 	}
-	res.json(requestUser);
+	reply.send(requestUser);
 };
 
-type UserListHandler = (userService: UserService) => Handler;
+type UserListHandler = (userService: UserService) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
-export const userListHandler: UserListHandler = userService => async (req, res) => {
+export const userListHandler: UserListHandler = userService => async (req, reply) => {
 	if (isNil(userService)) {
 		req.logger.error("userService should not be nil");
-		res.sendStatus(StatusCodes.INTERNAL_SERVER_ERROR).end();
+		reply.code(StatusCodes.INTERNAL_SERVER_ERROR).send();
+		return;
 	}
 	const users = await userService.getUsers();
 	const userInfoList: UserInfo[] = users.map(user => {
@@ -30,5 +32,5 @@ export const userListHandler: UserListHandler = userService => async (req, res) 
 		};
 		return userInfo;
 	});
-	res.json(userInfoList);
+	reply.send(userInfoList);
 };

@@ -1,11 +1,11 @@
-import { Request } from "express";
+import { type FastifyRequest } from "fastify";
 import { createInMemoryConnectionTracker } from "./in-memory-conntracker.js";
 import { createDynamodbConnectionTracker } from "./dynamodb-conntracker.js";
 
 export interface WsConnections {
-	readonly addConnection: (req: Request, userId: string, connId: string) => Promise<void>;
-	readonly removeConnection: (req: Request, userId: string, connId: string) => Promise<boolean>;
-	readonly getConnections: (req: Request, userId: string) => Promise<string[]>;
+	readonly addConnection: (req: FastifyRequest, userId: string, connId: string) => Promise<void>;
+	readonly removeConnection: (req: FastifyRequest, userId: string, connId: string) => Promise<boolean>;
+	readonly getConnections: (req: FastifyRequest, userId: string) => Promise<string[]>;
 }
 
 export const createWsgwConnectionTracker = async (dynamodbUrl?: string): Promise<WsConnections> => {
@@ -14,5 +14,4 @@ export const createWsgwConnectionTracker = async (dynamodbUrl?: string): Promise
 	}
 	return createInMemoryConnectionTracker();
 };
-
 

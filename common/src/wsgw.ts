@@ -2,7 +2,7 @@ export const connectPath = "/connect";
 export const disonnectedPath = "/disconnected";
 export const messagePath = "/message";
 
-// Lowercase: Express normalises all incoming header names to lowercase,
+// Lowercase: Node.js normalises all incoming header names to lowercase,
 // so req.headers["X-WSGW-CONNECTION-ID"] would always be undefined.
 export const connectionIDHeaderKey = "x-wsgw-connection-id";
 export const connIdPathParamName = "connectionId";

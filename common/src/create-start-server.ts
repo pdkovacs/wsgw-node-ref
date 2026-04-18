@@ -1,6 +1,5 @@
-import express from "express";
-import helmet from "helmet";
-import * as http from "node:http";
+import Fastify, { type FastifyInstance, type FastifyPluginAsync } from "fastify";
+import helmet from "@fastify/helmet";
 
 import { type AddressInfo } from "net";
 import { getLogger, setDefaultLogLevel } from "./logger.js";
@@ -17,7 +16,7 @@ export interface ServerConfig {
 	readonly host: string;
 	readonly port: number;
 	readonly http2?: boolean;
-	readonly routes: express.Router;
+	readonly routes: FastifyPluginAsync;
 	readonly passwordCredentialsList: PasswordCredentials[];
 	readonly rootOtelInstScope: string;
 	readonly serviceName: string;
@@ -31,21 +30,31 @@ export interface Server {
 export const createStartServer = async (config: ServerConfig): Promise<Server> => {
 	setDefaultLogLevel("debug");
 	const logger = getLogger("server");
-	const app = express();
+	// Fastify's TS split between FastifyHttpOptions / FastifyHttp2Options makes
+	// a runtime-toggled http2 flag awkward to express without widening the whole
+	// FastifyInstance type (which would then require Http2-typed handlers
+	// everywhere). Runtime behavior is correct regardless: `http2: true` with
+	// no `https` option serves h2c. Keep the instance typed as http1 so
+	// downstream handler typings stay sane.
+	const fastifyOptions = {
+		logger: false,
+		trustProxy: true,
+		...(config.http2 ? { http2: true } : {})
+	};
+	const app = (Fastify as (opts: unknown) => FastifyInstance)(fastifyOptions);
 
-	app.use(tracingMiddleWare(config.rootOtelInstScope));
-	app.use(helmet());
-	app.set("trust proxy", true);
-	app.use((req, _, next) => {
+	app.addHook("onRequest", tracingMiddleWare(config.rootOtelInstScope));
+	await app.register(helmet);
+	app.addHook("onRequest", (req, _, done) => {
 		req.logger = logger.child({
 			serviceName: config.serviceName,
-			requestUrl: req.originalUrl,
+			requestUrl: req.url,
 			method: req.method,
 			ip: req.ip
 		});
-		next();
+		req.session = {};
+		done();
 	});
-	app.use(express.json());
 
 	app.get("/app-info", getAppInfoHandler(resolve(".")));
 
@@ -54,40 +63,28 @@ export const createStartServer = async (config: ServerConfig): Promise<Server> =
 	const credentialsMatch: CredentialsMatch = async targetCreds =>
 		!isNil(config.passwordCredentialsList.find(creds => creds.username === targetCreds.username && creds.password === targetCreds.password));
 
-	setupAuthentication(app, credentialsMatch);
+	await app.register(async protectedApp => {
+		setupAuthentication(protectedApp, credentialsMatch);
 
-	app.get("/user", userInfoHandler(userService));
-	app.get("/users", userListHandler(userService));
+		protectedApp.get("/user", userInfoHandler(userService));
+		protectedApp.get("/users", userListHandler(userService));
 
-	app.use(config.routes);
-
-	const httpServer = http.createServer(app);
-
-	return await new Promise(resolve => {
-		httpServer.listen(config.port, config.host,
-			() => {
-				const addressInfo = httpServer.address() as AddressInfo;
-				logger.info("server is listenening", addressInfo);
-				resolve({
-					address: () => addressInfo,
-					shutdown: async () => {
-						await new Promise<void>((resolve, reject) => {
-							Promise.resolve() // close app resources
-								.then()
-								.catch(error => {
-									logger.error("#shutdown: failed to close app resources: %o", error);
-								})
-								.finally(() => {
-									logger.info("server is closing...");
-									httpServer.close(error => {
-										reject(error);
-									});
-									resolve();
-								});
-						});
-					}
-				});
-			}
-		);
+		await protectedApp.register(config.routes);
 	});
+
+	await app.listen({
+		host: config.host,
+		port: config.port
+	});
+
+	const addressInfo = app.server.address() as AddressInfo;
+	logger.info("server is listening", addressInfo);
+
+	return {
+		address: () => addressInfo,
+		shutdown: async () => {
+			logger.info("server is closing...");
+			await app.close();
+		}
+	};
 };

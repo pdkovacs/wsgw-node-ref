@@ -1,4 +1,4 @@
-import { Request, Handler } from "express";
+import { type FastifyReply, type FastifyRequest } from "fastify";
 import pLimit from "p-limit";
 import { context, trace } from "@opentelemetry/api";
 import { extractTraceData, injectIntoHeaders, injectTraceData } from "#common/otel.js";
@@ -24,7 +24,10 @@ export const createApiHanlderParams = async (wsgwLocator: WsgwLocator, wsConnect
 	};
 };
 
-export const createMessageHandler = (params: ApiHandlerParams): Handler => async (req, res) => {
+export const createMessageHandler = (params: ApiHandlerParams) => async (
+	req: FastifyRequest<{ Body: E2EMessage }>,
+	reply: FastifyReply
+) => {
 	const messageIn: E2EMessage = req.body;
 	const msgCtx = messageIn.traceData && Object.keys(messageIn.traceData).length > 0
 		? extractTraceData(messageIn.traceData)
@@ -36,7 +39,7 @@ export const createMessageHandler = (params: ApiHandlerParams): Handler => async
 				const { metrics: handlerMetrics } = params;
 				handlerMetrics.messageRequestCounter.add(1);
 				await sendMessageToUser(req, params, messageIn);
-				res.end();
+				reply.code(StatusCodes.NO_CONTENT).send();
 			} finally {
 				span.end();
 			}
@@ -44,7 +47,7 @@ export const createMessageHandler = (params: ApiHandlerParams): Handler => async
 	);
 };
 
-const sendMessageToUser = async (req: Request, params: ApiHandlerParams, messageIn: E2EMessage): Promise<void> => {
+const sendMessageToUser = async (req: FastifyRequest, params: ApiHandlerParams, messageIn: E2EMessage): Promise<void> => {
 	req.logger = req.logger.child({ testRunId: messageIn.testRunId });
 
 	const maxNrConcurrentSends = 4;
@@ -59,7 +62,7 @@ const sendMessageToUser = async (req: Request, params: ApiHandlerParams, message
 	await Promise.all(tasks);
 };
 
-const sendMessageToUserDevices = async (req: Request, params: ApiHandlerParams, userId: string, message: E2EMessage): Promise<void> => {
+const sendMessageToUserDevices = async (req: FastifyRequest, params: ApiHandlerParams, userId: string, message: E2EMessage): Promise<void> => {
 	const wsConnIds = await trace.getTracer(otelScope).startActiveSpan("find-user-devices", async (span) => {
 		try {
 			return await params.wsConnections.getConnections(req, userId);
@@ -72,7 +75,7 @@ const sendMessageToUserDevices = async (req: Request, params: ApiHandlerParams, 
 };
 
 const sendMessage = async (
-	req: Request,
+	req: FastifyRequest,
 	params: ApiHandlerParams,
 	userId: string,
 	message: E2EMessage,
@@ -103,10 +106,13 @@ const sendMessage = async (
 	return statusCode;
 };
 
-export const createBulkMessageHandler = (params: ApiHandlerParams): Handler => {
+export const createBulkMessageHandler = (params: ApiHandlerParams) => {
 	const { metrics: handlerMetrics } = params;
 
-	return async (req, res) => {
+	return async (
+		req: FastifyRequest<{ Body: E2EMessage[] }>,
+		reply: FastifyReply
+	) => {
 		const allMessages: E2EMessage[] = req.body;
 		handlerMetrics.messageRequestCounter.add(allMessages.length, { "runId": allMessages[0].testRunId });
 
@@ -118,10 +124,10 @@ export const createBulkMessageHandler = (params: ApiHandlerParams): Handler => {
 					: context.active();
 				await context.with(msgCtx, () => sendMessageToUser(req, params, messageIn));
 			}
-			res.end();
+			reply.code(StatusCodes.NO_CONTENT).send();
 		} catch (err) {
 			req.logger.error("error in createBulkMessageHandler: %o", err);
-			res.sendStatus(StatusCodes.INTERNAL_SERVER_ERROR);
+			reply.code(StatusCodes.INTERNAL_SERVER_ERROR).send();
 		}
 	};
 };

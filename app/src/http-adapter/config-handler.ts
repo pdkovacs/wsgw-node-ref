@@ -1,7 +1,7 @@
-import { Handler } from "express";
+import { type FastifyReply, type FastifyRequest } from "fastify";
 import { createWsgwLocator } from "#common/wsgw.js";
 import { envNamePrefix } from "../config.js";
 
-export const configHandler: Handler = (_req, res) => {
-	res.json(createWsgwLocator(envNamePrefix));
+export const configHandler = (_req: FastifyRequest, reply: FastifyReply) => {
+	reply.send(createWsgwLocator(envNamePrefix));
 };

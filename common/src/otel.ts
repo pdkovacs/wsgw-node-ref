@@ -9,9 +9,9 @@ import {
 	PeriodicExportingMetricReader
 } from "@opentelemetry/sdk-metrics";
 import { W3CTraceContextPropagator } from "@opentelemetry/core";
+import { type FastifyReply, type FastifyRequest, type HookHandlerDoneFunction } from "fastify";
 
 import { getLogger } from "./logger.js";
-import { Handler } from "express";
 
 // import { ExportResult } from "@opentelemetry/core";
 
@@ -112,9 +112,9 @@ export const setupMetrics = (config: OtelConfig) => {
 	metrics.setGlobalMeterProvider(meterProvider);
 };
 
-export const tracingMiddleWare: (instrumentationScope: string) => Handler = _scope => (req, _res, next) => {
+export const tracingMiddleWare = (_scope: string) => (req: FastifyRequest, _reply: FastifyReply, done: HookHandlerDoneFunction) => {
 	const activeContext: Context = propagation.extract(context.active(), req.headers);
-	context.with(activeContext, next);
+	context.with(activeContext, done);
 };
 
 export const injectTraceData = (): Record<string, string> => {

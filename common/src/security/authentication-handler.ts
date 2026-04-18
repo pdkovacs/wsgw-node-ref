@@ -1,12 +1,14 @@
-import { type Handler, type Request, type Router } from "express";
-import session from "express-session";
+import { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { getLogger } from "../logger.js";
 import { PasswordCredentials } from "./password-credentials.js";
 import { StatusCodes } from "http-status-codes";
 
-const getAuthorizationHeader: (req: Request) => string = req => req.headers.authorization ?? "";
+const getAuthorizationHeader = (req: FastifyRequest): string => {
+	const authorization = req.headers.authorization;
+	return Array.isArray(authorization) ? (authorization[0] ?? "") : (authorization ?? "");
+};
 
-const getCredentials = (req: Request): PasswordCredentials => {
+const getCredentials = (req: FastifyRequest): PasswordCredentials => {
 	const logger = getLogger("getCredentials");
 	const b64auth = getAuthorizationHeader(req).split(" ")[1] ?? "";
 	logger.debug("authorization header: %s", b64auth);
@@ -24,34 +26,26 @@ export type CredentialsMatch = (credentials: PasswordCredentials) => Promise<boo
 
 export const basicAuthenticationHandler = (
 	credentialsMatch: CredentialsMatch
-): Handler => (req, res, next) => {
+): ((req: FastifyRequest, reply: FastifyReply) => Promise<void>) => async (req, reply) => {
 	const logger = getLogger(`basic-authentication-handler (${req.url})`);
-	const asyncFunc = async (): Promise<void> => {
+	try {
 		const requestCredentials: PasswordCredentials = getCredentials(req);
 		const matchFound = await credentialsMatch(requestCredentials);
 		logger.debug("matchFound: %o", matchFound);
 		if (matchFound) {
 			req.session.user = { userId: requestCredentials.username, displayName: requestCredentials.username };
-			next();
+			return;
 		} else {
-			res.set("WWW-Authenticate", "Basic").status(StatusCodes.UNAUTHORIZED).end();
+			reply.header("WWW-Authenticate", "Basic").code(StatusCodes.UNAUTHORIZED).send();
+			return;
 		}
-	};
-	asyncFunc()
-		.then(
-			() => undefined
-		).catch(error => {
-			const errmsg = `Error during authentication: ${error}`;
-			logger.error("Error during authentication: %o", error);
-			res.status(StatusCodes.INTERNAL_SERVER_ERROR).send(errmsg).end();
-		});
+	} catch (error) {
+		const errmsg = `Error during authentication: ${error}`;
+		logger.error("Error during authentication: %o", error);
+		reply.code(StatusCodes.INTERNAL_SERVER_ERROR).send(errmsg);
+	}
 };
 
-export const setupAuthentication = (router: Router, credentialsMatch: CredentialsMatch) => {
-	router.use(session({
-		secret: "my-secret", // TODO: a secret string used to sign the session ID cookie
-		resave: false, // don't save session if unmodified
-		saveUninitialized: false // don't create session until something stored,
-	}));
-	router.use(basicAuthenticationHandler(credentialsMatch));
+export const setupAuthentication = (server: FastifyInstance, credentialsMatch: CredentialsMatch) => {
+	server.addHook("preHandler", basicAuthenticationHandler(credentialsMatch));
 };
