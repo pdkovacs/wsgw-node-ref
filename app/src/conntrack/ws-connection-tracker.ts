@@ -1,6 +1,7 @@
 import { type FastifyRequest } from "fastify";
 import { createInMemoryConnectionTracker } from "./in-memory-conntracker.js";
 import { createDynamodbConnectionTracker } from "./dynamodb-conntracker.js";
+import { createValkeyConnectionTracker } from "./valkey-conntracker.js";
 import { type ConnectionTrackingConfiguration } from "../config.js";
 
 export interface WsConnections {
@@ -16,6 +17,9 @@ export const createWsgwConnectionTracker = async (connectionTracking: Connection
 		case "dynamodb":
 			return createDynamodbConnectionTracker(connectionTracking.url);
 		case "valkey":
-			throw new Error("E2EAPP_CONNECTION_TRACKING=valkey is not implemented yet");
+			if (!connectionTracking.url) {
+				throw new Error("E2EAPP_CONNECTION_TRACKING_URL should be set when E2EAPP_CONNECTION_TRACKING=valkey");
+			}
+			return createValkeyConnectionTracker(connectionTracking.url);
 	}
 };

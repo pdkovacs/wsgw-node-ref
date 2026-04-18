@@ -34,6 +34,19 @@ spec:
                 secretKeyRef:
                   name: wsgw-e2e-app-users
                   key: PASSWORD_CREDENTIALS
+            # Supported values: in-memory, dynamodb, valkey.
+            - name: E2EAPP_CONNECTION_TRACKING
+              valueFrom:
+                configMapKeyRef:
+                  name: wsgw-e2e-app-config
+                  key: CONNECTION_TRACKING
+            # Optional endpoint for backends that need it.
+            # Examples: http://dynamodb-local:8000, valkey://valkey:6379
+            - name: E2EAPP_CONNECTION_TRACKING_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: wsgw-e2e-app-config
+                  key: CONNECTION_TRACKING_URL
             - name: E2EAPP_WSGW_HOST
               value: "wsgw"
             - name: E2EAPP_WSGW_PORT

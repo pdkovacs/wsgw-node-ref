@@ -73,6 +73,9 @@ const parseConnectionTrackingConfiguration = (
 	if (type === "in-memory" && url) {
 		throw new Error("E2EAPP_CONNECTION_TRACKING_URL should not be set when E2EAPP_CONNECTION_TRACKING=in-memory");
 	}
+	if (type === "valkey" && !url) {
+		throw new Error("E2EAPP_CONNECTION_TRACKING_URL should be set when E2EAPP_CONNECTION_TRACKING=valkey");
+	}
 
 	return {
 		type,

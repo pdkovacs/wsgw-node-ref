@@ -3,6 +3,8 @@ version: "3"
 vars:
   NAMESPACE: wsgw-e2e
   HTTP2: '{{.HTTP2 | default "false"}}'
+  CONNECTION_TRACKING: '{{.CONNECTION_TRACKING | default "in-memory"}}'
+  CONNECTION_TRACKING_URL: '{{.CONNECTION_TRACKING_URL | default ""}}'
 
 tasks:
   userdb:
@@ -30,6 +32,8 @@ tasks:
     cmds:
       - kubectl -n {{.NAMESPACE}} create configmap wsgw-e2e-app-config
           --from-literal=HTTP2={{.HTTP2}}
+          --from-literal=CONNECTION_TRACKING={{.CONNECTION_TRACKING}}
+          --from-literal=CONNECTION_TRACKING_URL={{.CONNECTION_TRACKING_URL}}
           --dry-run=client -o yaml | kubectl -n {{.NAMESPACE}} apply -f -
       - |
         kubectl -n {{.NAMESPACE}} apply -f ./e2e-app.yaml
