@@ -6,13 +6,12 @@ import { format } from "node:util";
 import { createStartServer } from "#common/create-start-server.js";
 import { createOtelConfig, OtelConfig, setupMetrics, setupTracing } from "#common/otel.js";
 import { connectPath, createWsgwLocator, disonnectedPath, messagePath } from "#common/wsgw.js";
-import { isEmpty } from "lodash";
 import { createApiHanlderParams, createBulkMessageHandler, createMessageHandler } from "./http-adapter/api-handler.js";
 import { createCounter, createWsHandlerMetrics } from "./http-adapter/metrics.js";
 import { configHandler } from "./http-adapter/config-handler.js";
 import { createWsgwConnectionTracker } from "./conntrack/ws-connection-tracker.js";
 import { connectWsHandler, disconnectWsHandler, messageWsHandler } from "./http-adapter/ws-handlers.js";
-import { envNamePrefix } from "./config.js";
+import { configuration } from "./config.js";
 
 export interface Server {
 	readonly address: () => { address: string; port: number };
@@ -22,6 +21,8 @@ export interface Server {
 const serviceName = "wsgw-e2e-app";
 
 export const creStartServer = async (): Promise<Server> => {
+	const { envNamePrefix, http2, passwordCredentialsList, serverPort } = configuration;
+
 	const otelConfig: OtelConfig = createOtelConfig(envNamePrefix, "wsgw-e2e-app");
 	setupTracing(otelConfig);
 	setupMetrics(otelConfig);
@@ -65,16 +66,10 @@ export const creStartServer = async (): Promise<Server> => {
 		});
 	};
 
-	const port = Number(process.env.E2EAPP_SERVER_PORT);
-	const passwordCredentialsList = JSON.parse(process.env.E2EAPP_PASSWORD_CREDENTIALS ?? "[]");
-	if (isEmpty(passwordCredentialsList)) {
-		throw new Error("E2EAPP_PASSWORD_CREDENTIALS should be set");
-	}
-
 	return createStartServer({
 		host: "0.0.0.0",
-		port: isNaN(port) ? 8080 : port,
-		http2: process.env.E2EAPP_HTTP2 === "true",
+		port: serverPort,
+		http2,
 		routes,
 		passwordCredentialsList,
 		rootOtelInstScope: serviceName,
