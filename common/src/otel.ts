@@ -1,3 +1,6 @@
+import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR);
+
 import { Context, context, Histogram, metrics, propagation, trace } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { AlwaysOnSampler, BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";

@@ -18,12 +18,12 @@ export interface Server {
 	readonly shutdown: () => Promise<void>;
 }
 
-const serviceName = "wsgw-e2e-app";
+const serviceName = "e2e-app";
 
 export const creStartServer = async (): Promise<Server> => {
 	const { connectionTracking, envNamePrefix, http2, passwordCredentialsList, serverPort } = configuration;
 
-	const otelConfig: OtelConfig = createOtelConfig(envNamePrefix, "wsgw-e2e-app");
+	const otelConfig: OtelConfig = createOtelConfig(envNamePrefix, serviceName);
 	setupTracing(otelConfig);
 	setupMetrics(otelConfig);
 

@@ -57,6 +57,10 @@ spec:
               value: "bitkit/wsgw"
             - name: E2EAPP_OTLP_SERVICE_NAME
               value: "e2e-app"
+            - name: AWS_ACCESS_KEY_ID
+              value: kalap
+            - name: AWS_SECRET_ACCESS_KEY
+              value: kabat
           resources:
             requests:
               memory: "30M"

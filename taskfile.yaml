@@ -5,15 +5,10 @@ includes:
     taskfile: ./deploy/k8s/taskfile.yaml
     dir: ./deploy/k8s
 
-env:
-  SPIKE_OTLP_ENDPOINT: http://localhost:4318/v1/metrics
-  SPIKE_OTLP_SERVICE_NAMESPACE: bitkit
-  SPIKE_OTLP_SERVICE_NAME: my-node-otel-spike
-
 vars:
   APP_NAME: wsgw-e2e-app
-  NAMESPACE: '{{.NAMESPACE | default "wsgw-e2e" }}'
-  HTTP2: '{{.HTTP2 | default "false"}}'
+  NAMESPACE: "{{.NAMESPACE | default \"wsgw-e2e\" }}"
+  HTTP2: "{{.HTTP2 | default \"false\"}}"
 
 tasks:
   app-version-data:
@@ -37,7 +32,7 @@ tasks:
         }
         EOF
   app:
-    deps: [app-version-data]
+    deps: [ app-version-data ]
     cmds:
       - |
         tsc -p app
@@ -49,7 +44,7 @@ tasks:
     generates:
       - app/dist/bundle.js
   app:image:
-    deps: [app]
+    deps: [ app ]
     cmds:
       - |
         docker_dir=app/image
@@ -60,7 +55,7 @@ tasks:
         fi
         docker build -t bitkit/{{.APP_NAME}}-node $docker_dir
   run:
-    deps: [app-version-data]
+    deps: [ app-version-data ]
     cmds:
       - tsc -p app
       - |

@@ -9,7 +9,6 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { WsConnections } from "./ws-connection-tracker.js";
-import { NodeHttp2Handler } from "@smithy/node-http-handler";
 import { isEmpty } from "lodash";
 
 const TABLE_NAME = "WsgwConnectionIds";
@@ -17,24 +16,18 @@ const USER_ID_ATTRIBUTE = "UserId";
 const CONNECTION_ID_ATTRIBUTE = "ConnectionId";
 const DATE_CREATED_ATTRIBUTE = "DateCreated";
 
-const http2 = false;
-
 export const createDynamodbConnectionTracker = async (dynamodbUrl?: string): Promise<WsConnections> => {
 	const endpointRegion = dynamodbUrl
 		? { endpoint: dynamodbUrl, region: "eu-west-2" }
 		: { region: "eu-west-2" };
 	const client = new DynamoDBClient({
-		requestHandler: http2
-			? new NodeHttpHandler({
-				requestTimeout: 3_000,
-				httpsAgent: new https.Agent({
-					keepAlive: true,
-					maxSockets: 100
-				})
+		requestHandler: new NodeHttpHandler({
+			requestTimeout: 3_000,
+			httpsAgent: new https.Agent({
+				keepAlive: true,
+				maxSockets: 100
 			})
-			: new NodeHttp2Handler({
-				requestTimeout: 3_000
-			}),
+		}),
 		...endpointRegion
 	});
 
