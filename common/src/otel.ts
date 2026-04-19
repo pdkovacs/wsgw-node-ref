@@ -1,7 +1,7 @@
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR);
 
-import { Context, context, Histogram, metrics, propagation, trace } from "@opentelemetry/api";
+import { Context, context, Histogram, metrics, propagation } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { AlwaysOnSampler, BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { defaultResource, resourceFromAttributes } from "@opentelemetry/resources";
@@ -59,12 +59,9 @@ export const setupTracing = (config: OtelConfig) => {
 		sampler: new AlwaysOnSampler()
 	});
 
-	propagation.setGlobalPropagator(new W3CTraceContextPropagator());
-
-	traceProvider.register();
-
-	// Initialize the OpenTelemetry APIs to use the NodeTracerProvider bindings
-	trace.setGlobalTracerProvider(traceProvider);
+	traceProvider.register({
+		propagator: new W3CTraceContextPropagator()
+	});
 
 	logger.debug("tracing setup");
 };
