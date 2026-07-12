@@ -14,21 +14,21 @@ If you're integrating with wsgw in a Node service, this is the shape your backen
 ```
 Client                wsgw                       wsgw-node-ref (this repo)
   |                     |                                  |
-  |--- GET /connect --->|--- GET  /ws/connect ------------>|  auth + register conn
+  |--- GET /connect --->|--- GET  /ws/connect/{id} ------->|  auth + register conn
   |<---- 101 -----------|<--------- 200 OK ----------------|
   |                     |                                  |
-  |---- WS frame ------>|--- POST /ws/message ------------>|  ingest from client
+  |---- WS frame ------>|--- POST /ws/message/{id} ------->|  ingest from client
   |                     |<--------- 200 OK ----------------|
   |                     |                                  |
   |                     |<-- POST /message/{id} -----------|  push to client
   |<--- WS frame -------|----------- 204 ---------------- >|     (via /api/message)
   |                     |                                  |
-  |--- WS close ------->|--- POST /ws/disconnected ------->|  drop conn
+  |--- WS close ------->|--- POST /ws/disconnected/{id} -->|  drop conn
 ```
 
 Roles of this app:
 
-- **As a wsgw backend** — serves `/ws/connect`, `/ws/message`, `/ws/disconnected` (mounted under the `/ws` prefix). wsgw forwards client traffic and lifecycle events here.
+- **As a wsgw backend** — serves `/ws/connect/{id}`, `/ws/message/{id}`, `/ws/disconnected/{id}` (mounted under the `/ws` prefix). wsgw forwards client traffic and lifecycle events here, with the gateway-assigned connection ID as the last path segment.
 - **As a sender** — exposes `/api/message` and `/api/messages-in-bulk`. Other parts of the system (or the smoke test) post here to fan a payload out to a user's live WebSocket connections, which the app does by `POST`ing to wsgw's `/message/{connectionId}` for each tracked connection ID.
 
 The app is the source of truth for "which connection IDs belong to which user". Tracking is pluggable so this repo also serves as a place to compare backends (in-process map vs. DynamoDB vs. Valkey) under load.
@@ -55,13 +55,13 @@ node app/dist/app/src/index.js
 
 ### Served to wsgw (the backend contract)
 
-Mounted under `/ws`. Authentication is Basic Auth, applied as a Fastify `preHandler` to every protected route — wsgw forwards the client's `Authorization` header through unchanged on `GET /ws/connect`, and the smoke test/sender uses the same scheme.
+Mounted under `/ws`. The gateway-assigned connection ID arrives as the last path segment (`/:connectionId`) on every leg. Authentication is Basic Auth, applied as a Fastify `preHandler` to every protected route — wsgw forwards the client's `Authorization` header through unchanged on `GET /ws/connect/{id}`, and the smoke test/sender uses the same scheme.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`  | `/ws/connect` | Authenticate the upgrading client, register `(userId, connectionId)` in the tracker, return `200`. `401` if Basic Auth fails, `400` if `X-WSGW-CONNECTION-ID` is missing, `403` if the session has no user. |
-| `POST` | `/ws/message` | Ingest a frame the client sent. Currently logs and returns `200` — replace this with whatever your application does with inbound messages. |
-| `POST` | `/ws/disconnected` | Drop the connection from the tracker. `200` on success, `400` if connection-id or user is missing. |
+| `GET`  | `/ws/connect/{connectionId}` | Authenticate the upgrading client, register `(userId, connectionId)` in the tracker, return `200`. `401` if Basic Auth fails, `400` if the `{connectionId}` path segment is missing, `403` if the session has no user. |
+| `POST` | `/ws/message/{connectionId}` | Ingest a frame the client sent. Currently logs and returns `200` — replace this with whatever your application does with inbound messages. `400` if the `{connectionId}` path segment is missing. |
+| `POST` | `/ws/disconnected/{connectionId}` | Drop the connection from the tracker. `200` on success, `400` if the `{connectionId}` path segment or the user is missing. |
 
 ### Served to other clients (the sender API)
 
@@ -81,9 +81,9 @@ Mounted under `/api`. Same Basic Auth.
 | `GET`  | `/config` | Effective runtime configuration. |
 | `GET`  | `/test-otel` | Toy handler that emits a span and a counter — useful when wiring up an OTel collector. |
 
-### Headers
+### Headers and the connection ID
 
-- **`X-WSGW-CONNECTION-ID`** — set by wsgw on every call into this app. Read lower-cased (`x-wsgw-connection-id`) because Node normalises header names.
+- **Connection ID** — a path parameter (`/:connectionId`) on every wsgw→app leg (`/ws/connect/{id}`, `/ws/message/{id}`, `/ws/disconnected/{id}`), read via `req.params[connIdPathParamName]`. It is no longer passed as the `X-WSGW-CONNECTION-ID` header. The header key still lives in [common/src/wsgw.ts](common/src/wsgw.ts) as `connectionIDHeaderKey` (lower-cased, since Node normalises header names), where it names the header wsgw sets on the client-facing `GET /connect` response — not on calls into this app.
 - **`Authorization`** — Basic, validated against `E2EAPP_PASSWORD_CREDENTIALS`. wsgw does no auth itself; it just forwards the client header.
 
 ## Configuration

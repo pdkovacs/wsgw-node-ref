@@ -1,15 +1,13 @@
 import { type FastifyReply, type FastifyRequest } from "fastify";
 import { trace } from "@opentelemetry/api";
 import { WsConnections } from "../conntrack/ws-connection-tracker.js";
-import { connectionIDHeaderKey } from "#common/wsgw.js";
+import { connIdPathParamName } from "#common/wsgw.js";
 import { isNil } from "lodash";
 import { StatusCodes } from "http-status-codes";
 import { otelScope, WsHandlerMetrics } from "./metrics.js";
 
-const getConnectionIdFromHeader = (req: FastifyRequest): string | undefined => {
-	const connId = req.headers[connectionIDHeaderKey];
-	return Array.isArray(connId) ? connId[0] : connId;
-};
+const getConnectionIdFromParams = (req: FastifyRequest): string | undefined =>
+	(req.params as Record<string, string>)[connIdPathParamName];
 
 export const connectWsHandler = (metrics: WsHandlerMetrics, wsConnections: WsConnections) => async (req: FastifyRequest, reply: FastifyReply) => {
 	await trace.getTracer(otelScope).startActiveSpan("new-ws-connection", async (span) => {
@@ -23,9 +21,9 @@ export const connectWsHandler = (metrics: WsHandlerMetrics, wsConnections: WsCon
 				return;
 			}
 
-			const connId = getConnectionIdFromHeader(req);
+			const connId = getConnectionIdFromParams(req);
 			if (isNil(connId)) {
-				req.logger.error("No connection-id header %s", connectionIDHeaderKey);
+				req.logger.error("No connection-id path param %s", connIdPathParamName);
 				reply.code(StatusCodes.BAD_REQUEST).send();
 				return;
 			}
@@ -53,7 +51,7 @@ export const disconnectWsHandler = (metrics: WsHandlerMetrics, wsConnections: Ws
 
 			const logger = req.logger.child({ "userId": userId });
 
-			const connId = getConnectionIdFromHeader(req);
+			const connId = getConnectionIdFromParams(req);
 			if (isNil(connId)) {
 				logger.info("incoming ws disconnection request without connection-id");
 				reply.code(StatusCodes.BAD_REQUEST).send();
@@ -74,7 +72,7 @@ export const disconnectWsHandler = (metrics: WsHandlerMetrics, wsConnections: Ws
 
 export const messageWsHandler = (metrics: WsHandlerMetrics, _wsConnections: WsConnections) => async (req: FastifyRequest, reply: FastifyReply) => {
 	metrics.messageRequestCounter.add(1);
-	const connId = getConnectionIdFromHeader(req);
+	const connId = getConnectionIdFromParams(req);
 	if (isNil(connId)) {
 		req.logger.info("send message request without connection-id");
 		reply.code(StatusCodes.BAD_REQUEST).send();

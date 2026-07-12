@@ -5,7 +5,7 @@ import { format } from "node:util";
 
 import { createStartServer } from "#common/create-start-server.js";
 import { createOtelConfig, OtelConfig, setupMetrics, setupTracing } from "#common/otel.js";
-import { connectPath, createWsgwLocator, disonnectedPath, messagePath } from "#common/wsgw.js";
+import { connectPath, connIdPathParamName, createWsgwLocator, disonnectedPath, messagePath } from "#common/wsgw.js";
 import { createApiHanlderParams, createBulkMessageHandler, createMessageHandler } from "./http-adapter/api-handler.js";
 import { createCounter, createWsHandlerMetrics } from "./http-adapter/metrics.js";
 import { configHandler } from "./http-adapter/config-handler.js";
@@ -42,9 +42,9 @@ export const creStartServer = async (): Promise<Server> => {
 
 		await router.register(async wsRouter => {
 			const wsHandlerMetrics = createWsHandlerMetrics();
-			wsRouter.get(connectPath, connectWsHandler(wsHandlerMetrics, wsConnections));
-			wsRouter.post(disonnectedPath, disconnectWsHandler(wsHandlerMetrics, wsConnections));
-			wsRouter.post(messagePath, messageWsHandler(wsHandlerMetrics, wsConnections));
+			wsRouter.get(`${connectPath}/:${connIdPathParamName}`, connectWsHandler(wsHandlerMetrics, wsConnections));
+			wsRouter.post(`${disonnectedPath}/:${connIdPathParamName}`, disconnectWsHandler(wsHandlerMetrics, wsConnections));
+			wsRouter.post(`${messagePath}/:${connIdPathParamName}`, messageWsHandler(wsHandlerMetrics, wsConnections));
 		}, { prefix: "/ws" });
 
 		router.get<{ Querystring: { someone?: string } }>("/test-otel", (req, reply) => {
